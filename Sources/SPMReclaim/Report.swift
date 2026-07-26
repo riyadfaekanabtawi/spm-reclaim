@@ -33,19 +33,27 @@ func runGC(days: Int, apply: Bool) {
     let cutoff = Int(Date().timeIntervalSince1970) - days * 86400
     var freed = 0
     var count = 0
+    var failures = 0
     for k in kids {
         let dir = derivedDataDir + "/" + k
         guard let info = lstatInfo(dir), info.mtime < cutoff else { continue }
         let size = dirSize(dir)
         let age = (Int(Date().timeIntervalSince1970) - info.mtime) / 86400
         print(String(format: "%-50@ %10@  %dd", k as NSString, humanBytes(size) as NSString, age))
-        freed += size
         count += 1
-        if apply {
-            do { try fm.removeItem(atPath: dir) }
-            catch { err("remove failed \(k): \(error.localizedDescription)") }
+        guard apply else {
+            freed += size
+            continue
+        }
+        do {
+            try fm.removeItem(atPath: dir)
+            freed += size
+        } catch {
+            err("remove failed \(k): \(error.localizedDescription)")
+            failures += 1
         }
     }
     print("\nstale projects: \(count)")
     print(apply ? "removed: \(humanBytes(freed))" : "reclaimable: \(humanBytes(freed)) (re-run with --apply)")
+    if apply, failures > 0 { print("failures: \(failures)") }
 }
